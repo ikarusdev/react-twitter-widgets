@@ -5,7 +5,8 @@ import {
   useShallowCompareMemoize,
   removeChildrenWithAttribute,
   twWidgetFactory,
-  cloneShallow
+  cloneShallow,
+  twEventsFactory
 } from "./utils";
 
 if (canUseDOM) {
@@ -77,7 +78,7 @@ function useTwitterWidget(factoryFunctionName, primaryArg, options, onLoad) {
           if (!resultMaybe && !isCanceled) {
             throw new Error(
               "Twitter could not create widget. If it is a Timeline or " +
-                "Tweet, ensure the screenName/tweetId exists."
+              "Tweet, ensure the screenName/tweetId exists."
             );
           }
         } catch (e) {
@@ -111,6 +112,78 @@ function useTwitterWidget(factoryFunctionName, primaryArg, options, onLoad) {
   }, deps);
 
   return { ref, error };
+}
+
+const HANDLERS = {
+  tweet: {},
+  retweet: {},
+  like: {}
+}
+
+const BASE_HANDLERS = {
+  tweet: (intent) => {
+    const handler = HANDLERS.tweet[intent.data.tweet_id];
+    if (!handler) {
+      return;
+    }
+
+    handler();
+  },
+  retweet: (intent) => {
+    const handler = HANDLERS.retweet[intent.data.source_tweet_id];
+    if (!handler) {
+      return;
+    }
+
+    handler();
+  },
+  like: (intent) => {
+    const handler = HANDLERS.like[intent.data.tweet_id];
+    if (!handler) {
+      return;
+    }
+
+    handler();
+  }
+}
+
+
+function useTwitterEvents(id, { onTweet, onRetweet, onLike }) {
+  useEffect(() => {
+    async function loadEvents() {
+      const events = await twEventsFactory();
+      // Bind it once on load
+      events.bind('tweet', BASE_HANDLERS.tweet);
+      events.bind('retweet', BASE_HANDLERS.retweet);
+      events.bind('like', BASE_HANDLERS.like);
+    }
+
+    loadEvents();
+  }, [])
+
+  useEffect(() => {
+    if (!onTweet || !id) {
+      return;
+    }
+
+    HANDLERS.tweet[id] = onTweet
+  }, [id, onTweet])
+
+  useEffect(() => {
+    if (!onRetweet || !id) {
+      return;
+    }
+
+    HANDLERS.retweet[id] = onRetweet
+  }, [id, onRetweet])
+
+  useEffect(() => {
+    if (!onLike || !id) {
+      return;
+    }
+
+    HANDLERS.like[id] = onLike
+  }, [id, onLike])
 }
 
 export const Follow = ({ username, options, onLoad, renderError }) => {
@@ -163,12 +236,15 @@ export const Timeline = ({ dataSource, options, onLoad, renderError }) => {
   return <div ref={ref}>{error && renderError && renderError(error)}</div>;
 };
 
-export const Tweet = ({ tweetId, options, onLoad, renderError }) => {
+export const Tweet = ({ tweetId, options, onLoad, onLike, onTweet, onRetweet, renderError }) => {
   const { ref, error } = useTwitterWidget(
     "createTweet",
     tweetId,
     options,
     onLoad
   );
+
+  useTwitterEvents(tweetId, { onLike, onTweet, onRetweet });
+
   return <div ref={ref}>{error && renderError && renderError(error)}</div>;
 };

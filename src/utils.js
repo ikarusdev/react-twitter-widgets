@@ -33,6 +33,24 @@ export function twWidgetFactory() {
   });
 }
 
+export function twEventsFactory() {
+  return new Promise((resolve, reject) => {
+    const rejectWithError = () =>
+      reject(new Error("Could not load remote twitter widgets js"));
+    loadjs.ready(twScriptName, {
+      success: () => {
+        // Ensure loaded
+        const twttr = window[twScriptWindowFieldName];
+        if (!twttr || !twttr.widgets) {
+          rejectWithError();
+        }
+        resolve(twttr.events);
+      },
+      error: rejectWithError
+    });
+  });
+}
+
 export function removeChildrenWithAttribute(node, attribute) {
   if (node) {
     node.querySelectorAll("*").forEach(child => {
